@@ -1239,7 +1239,31 @@ class Cadical(object):
         """
 
         raise NotImplementedError('Atmost constraints are not supported by CaDiCaL.')
-
+    
+    def freeze(self, lit):
+        """
+            Freeze a literal for inprocessing.
+        """
+        if self.cadical:
+            res = pysolvers.cadical_freeze(self.cadical, lit)
+            return res
+    
+    def melt(self, lit):
+        """
+            Melt a literal for inprocessing.
+        """
+        if self.cadical:
+            res = pysolvers.cadical_melt(self.cadical, lit)
+            return res
+    
+    def simplify(self, level):
+        """
+            Simplify the given formula.
+        """
+        if self.cadical:
+            res = pysolvers.cadical_simplify(self.cadical, level)
+            return res
+    
     def append_formula(self, formula, no_return=True):
         """
             Appends list of clauses to solver's internal formula.

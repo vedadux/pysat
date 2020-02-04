@@ -82,6 +82,9 @@ static char     model_docstring[] = "Get a model if formula is SAT.";
 static char     nvars_docstring[] = "Get number of variables used by the solver.";
 static char      ncls_docstring[] = "Get number of clauses used by the solver.";
 static char       del_docstring[] = "Delete a previously created solver object.";
+static char    freeze_docstring[] = "Freeze a variable for future use.";
+static char      melt_docstring[] = "Enable elimination of a previously frozen variable.";
+static char  simplify_docstring[] = "Simplify the formula through inprocessing.";
 
 static PyObject *SATError;
 static jmp_buf env;
@@ -99,6 +102,9 @@ extern "C" {
 	static PyObject *py_cadical_nof_vars  (PyObject *, PyObject *);
 	static PyObject *py_cadical_nof_cls   (PyObject *, PyObject *);
 	static PyObject *py_cadical_del       (PyObject *, PyObject *);
+	static PyObject *py_cadical_freeze    (PyObject *, PyObject *);
+	static PyObject *py_cadical_melt      (PyObject *, PyObject *);
+	static PyObject *py_cadical_simplify  (PyObject *, PyObject *);
 #endif
 #ifdef WITH_GLUCOSE30
 	static PyObject *py_glucose3_new       (PyObject *, PyObject *);
@@ -262,15 +268,18 @@ extern "C" {
 //=============================================================================
 static PyMethodDef module_methods[] = {
 #ifdef WITH_CADICAL
-	{ "cadical_new",       py_cadical_new,       METH_VARARGS,     new_docstring },
-	{ "cadical_add_cl",    py_cadical_add_cl,    METH_VARARGS,   addcl_docstring },
-	{ "cadical_solve",     py_cadical_solve,     METH_VARARGS,   solve_docstring },
-	{ "cadical_tracepr",   py_cadical_tracepr,   METH_VARARGS, tracepr_docstring },
-	{ "cadical_core",      py_cadical_core,      METH_VARARGS,    core_docstring },
-	{ "cadical_model",     py_cadical_model,     METH_VARARGS,   model_docstring },
-	{ "cadical_nof_vars",  py_cadical_nof_vars,  METH_VARARGS,   nvars_docstring },
-	{ "cadical_nof_cls",   py_cadical_nof_cls,   METH_VARARGS,    ncls_docstring },
-	{ "cadical_del",       py_cadical_del,       METH_VARARGS,     del_docstring },
+	{ "cadical_new",       py_cadical_new,       METH_VARARGS,      new_docstring },
+	{ "cadical_add_cl",    py_cadical_add_cl,    METH_VARARGS,    addcl_docstring },
+	{ "cadical_solve",     py_cadical_solve,     METH_VARARGS,    solve_docstring },
+	{ "cadical_tracepr",   py_cadical_tracepr,   METH_VARARGS,  tracepr_docstring },
+	{ "cadical_core",      py_cadical_core,      METH_VARARGS,     core_docstring },
+	{ "cadical_model",     py_cadical_model,     METH_VARARGS,    model_docstring },
+	{ "cadical_nof_vars",  py_cadical_nof_vars,  METH_VARARGS,    nvars_docstring },
+	{ "cadical_nof_cls",   py_cadical_nof_cls,   METH_VARARGS,     ncls_docstring },
+	{ "cadical_del",       py_cadical_del,       METH_VARARGS,      del_docstring },
+	{ "cadical_freeze",    py_cadical_freeze,    METH_VARARGS,   freeze_docstring },
+	{ "cadical_melt",      py_cadical_melt,      METH_VARARGS,     melt_docstring },
+	{ "cadical_simplify",  py_cadical_simplify,  METH_VARARGS, simplify_docstring },
 #endif
 #ifdef WITH_GLUCOSE30
 	{ "glucose3_new",       py_glucose3_new,       METH_VARARGS,       new_docstring },
@@ -895,6 +904,111 @@ static PyObject *py_cadical_del(PyObject *self, PyObject *args)
 	delete s;
 	Py_RETURN_NONE;
 }
+
+//
+//=============================================================================
+static PyObject *py_cadical_freeze(PyObject *self, PyObject *args)
+{
+	PyObject *s_obj; // solver
+	PyObject *l_obj; // literal
+
+	if (!PyArg_ParseTuple(args, "OO", &s_obj, &l_obj))
+		return NULL;
+
+	// get pointer to solver
+	CaDiCaL::Solver *s = (CaDiCaL::Solver *)pyobj_to_void(s_obj);
+
+	if (!pyint_check(l_obj)) {
+		// Py_DECREF(l_obj);
+		PyErr_SetString(PyExc_TypeError, "integer expected");
+		return NULL;
+	}
+
+	int l = pyint_to_cint(l_obj);
+	// Py_DECREF(l_obj);
+
+	if (l == 0) {
+		PyErr_SetString(PyExc_ValueError, "non-zero integer expected");
+		return NULL;
+	}
+
+    s->freeze(l);
+
+	PyObject *ret = PyBool_FromLong((long)true);
+	return ret;
+}
+
+//
+//=============================================================================
+static PyObject *py_cadical_melt(PyObject *self, PyObject *args)
+{
+	PyObject *s_obj; // solver
+	PyObject *l_obj; // literal
+
+	if (!PyArg_ParseTuple(args, "OO", &s_obj, &l_obj))
+		return NULL;
+
+	// get pointer to solver
+	CaDiCaL::Solver *s = (CaDiCaL::Solver *)pyobj_to_void(s_obj);
+
+	if (!pyint_check(l_obj)) {
+		// Py_DECREF(l_obj);
+		PyErr_SetString(PyExc_TypeError, "integer expected");
+		return NULL;
+	}
+
+	int l = pyint_to_cint(l_obj);
+	// Py_DECREF(l_obj);
+
+	if (l == 0) {
+		PyErr_SetString(PyExc_ValueError, "non-zero integer expected");
+		return NULL;
+	}
+	
+	PyObject *ret = NULL;
+	
+	if (!s->frozen(l)) {
+		ret = PyBool_FromLong((long)false);
+		return ret;
+	}
+
+    s->melt(l);
+
+	ret = PyBool_FromLong((long)true);
+	return ret;
+}
+
+//
+//=============================================================================
+static PyObject *py_cadical_simplify(PyObject *self, PyObject *args)
+{
+	PyObject *s_obj; // solver
+	PyObject *l_obj; // level
+
+	if (!PyArg_ParseTuple(args, "OO", &s_obj, &l_obj))
+		return NULL;
+
+	// get pointer to solver
+	CaDiCaL::Solver *s = (CaDiCaL::Solver *)pyobj_to_void(s_obj);
+
+    int l = 3;
+
+	if (pyint_check(l_obj)) {
+		l = pyint_to_cint(l_obj);
+		if (l <= 0) {
+		    // Py_DECREF(l_obj);
+		    PyErr_SetString(PyExc_ValueError, "positive integer expected");
+		    return NULL;
+	    }
+	}
+    // Py_DECREF(l_obj);
+
+	s->simplify(l);
+
+	PyObject *ret = PyBool_FromLong((long)true);
+	return ret;
+}
+
 #endif  // WITH_CADICAL
 
 // API for Glucose 3.0
@@ -922,7 +1036,7 @@ static inline void glucose3_declare_vars(Glucose30::Solver *s, const int max_id)
 }
 
 // translating an iterable to vec<Lit>
-//=============================================================================
+//================================  =============================================
 static inline bool glucose3_iterate(
 	PyObject *obj,
 	Glucose30::vec<Glucose30::Lit>& v,
